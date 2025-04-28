@@ -1,0 +1,26 @@
+---
+- name: Configuration de l'environnement applicatif
+  hosts: all
+  become: yes
+  tasks:
+
+    - name: Créer le groupe app_group
+      group:
+        name: app_group
+        state: present
+
+    - name: Créer l'utilisateur app_user
+      user:
+        name: app_user
+        group: app_group
+        home: /home/app_user
+        state: present
+        create_home: yes
+
+    - name: Créer le répertoire /app_data et attibution des droits à l'utilisateurs app_user
+      file:
+        path: /app_data
+        state: directory
+        owner: app_user
+        group: app_group
+        mode: '0744'
