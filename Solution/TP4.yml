@@ -1,0 +1,70 @@
+---
+- name: Configuration de l'environnement applicatif avec variables et répertoires multiples
+  hosts: all
+  become: yes
+  vars:
+    app_group: "app_group"  # Groupe pour l'application
+    app_user: "app_user"    # Utilisateur pour l'application
+    app_directories:
+      - "/app_data"         # Liste des répertoires à créer
+      - "/app_logs"
+      - "/app_config"
+
+  tasks:
+    # Débogage initial pour vérifier les variables définies
+    - name: Afficher les variables de groupe, utilisateur et répertoires
+      debug:
+        msg: "Les variables sont : Groupe={{ app_group }}, Utilisateur={{ app_user }}, Répertoires={{ app_directories }}"
+
+    # Debug sur les hôtes
+    - name: Afficher l'hôte actuel
+      debug:
+        msg: "Exécution sur l'hôte : {{ inventory_hostname }}"
+
+    # Créer le groupe app_group
+    - name: Créer le groupe app_group
+      group:
+        name: "{{ app_group }}"
+        state: present
+
+    # Debug pour vérifier la création du groupe
+    - name: Afficher le groupe créé
+      debug:
+        msg: "Le groupe {{ app_group }} a été créé sur {{ inventory_hostname }}"
+
+    # Créer l'utilisateur app_user
+    - name: Créer l'utilisateur app_user
+      user:
+        name: "{{ app_user }}"
+        group: "{{ app_group }}"
+        home: "/home/{{ app_user }}"
+        state: present
+        create_home: yes
+
+    # Debug pour vérifier la création de l'utilisateur
+    - name: Afficher l'utilisateur créé
+      debug:
+        msg: "L'utilisateur {{ app_user }} a été créé avec le groupe {{ app_group }} sur {{ inventory_hostname }}"
+
+    # Créer les répertoires définis dans app_directories
+    - name: Créer les répertoires
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: '0755'
+      loop: "{{ app_directories }}"
+
+    # Debug pour vérifier la création de chaque répertoire
+    - name: Afficher les répertoires créés
+      debug:
+        msg: "Le répertoire {{ item }} a été créé sur {{ inventory_hostname }} avec les permissions 0755."
+      loop: "{{ app_directories }}"
+
+    # Vérifier les permissions des répertoires après création
+    - name: Vérifier les permissions des répertoires
+      stat:
+        path: "{{ item }}"
+      loop: "{{ app_directories }}"
+      register: dir_stats
