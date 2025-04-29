@@ -1,1 +1,62 @@
+---
+# Playbook pour déployer et vérifier Nginx sur les hôtes cibles
+- name: Déploiement de Nginx sur les hôtes cibles
+  hosts: all  # Appliquer le playbook à tous les hôtes cibles
+  become: true  # Devenir root pour les opérations qui nécessitent des privilèges élevés
+  gather_facts: true  # Collecter des faits sur les hôtes pour des décisions basées sur le système d'exploitation
+
+  vars:
+    nginx_port: 80  # Port par défaut de Nginx
+    nginx_check_url: "http://localhost"  # URL pour tester si Nginx répond correctement
+
+  # Pré-tâches avant de déployer Nginx
+  pre_tasks:
+    - name: Vérifier la connectivité avec les hôtes
+      ping:  # Tester la connectivité avec chaque hôte cible
+
+    - name: "Mettre à jour le cache APT (pour Debian/Ubuntu)"
+      apt:
+        update_cache: yes  # Mettre à jour le cache APT
+      when: ansible_os_family == "Debian"  # Appliquer uniquement sur les hôtes Debian/Ubuntu
+
+    - name: Installer curl pour vérifier la réponse HTTP
+      apt:
+        name: curl  # Installer curl sur les hôtes cibles
+        state: present  # Assurer que curl est installé
+      when: ansible_os_family == "Debian"  # Appliquer uniquement sur les hôtes Debian/Ubuntu
+
+  # Le rôle qui déploie Nginx sur les hôtes cibles
+  roles:
+    - nginx_role  # Appliquer le rôle 'nginx_role', qui contient les tâches pour installer Nginx
+
+  # Post-tâches pour valider l'installation et le bon fonctionnement de Nginx
+  post_tasks:
+    - name: Attendre que Nginx soit accessible sur le port {{ nginx_port }}
+      wait_for:
+        port: "{{ nginx_port }}"  # Attendre que Nginx écoute sur le port 80
+        timeout: 30  # Attendre jusqu'à 30 secondes pour la réponse
+        state: started  # Vérifier que le port est bien ouvert (l'état est "started")
+
+    - name: Vérifier si nginx est activé au démarrage
+      systemd:
+        name: nginx  # Vérifier le service Nginx
+        enabled: yes  # Vérifier que le service est activé au démarrage
+      register: nginx_service_enabled
+      ignore_errors: true  # Ignorer les erreurs si le service n'est pas trouvé ou si l'état est inconnu
+
+    - name: Vérifier l’accessibilité de la page d’accueil de Nginx
+      uri:
+        url: "{{ nginx_check_url }}"  # Vérifier l'URL locale de Nginx
+        status_code: 200  # Attendre un code de réponse HTTP 200 (OK)
+      register: nginx_response  # Enregistrer la réponse HTTP dans la variable nginx_response
+
+    - name: Afficher le code HTTP reçu de la page d’accueil de Nginx
+      debug:
+        msg: "✔️ Code HTTP reçu : {{ nginx_response.status }}"  # Afficher le code HTTP de la page d'accueil de Nginx
+
+    - name: Vérifier que Nginx répond correctement via cURL
+      command: "curl -I {{ nginx_check_url }}"  # Vérifier la réponse HTTP via cURL
+      register: nginx_curl_check
+      failed_when: "'200 OK' not in nginx_curl_check.stdout"  # Vérifier que le code HTTP 200 est retourné
+      changed_when: false  # Ne pas marquer cette tâche comme modifiée
 
